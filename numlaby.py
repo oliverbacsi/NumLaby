@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #################################################
-# Number Labirynth
+# Number Labyrinth
 #
 import math
 import random
