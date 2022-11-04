@@ -2,30 +2,14 @@
 #################################################
 # Number Labyrinth
 #
-import math
+
 import random
 import curses
+import sys
 
 TABLE    :dict = {}
 SOLUTION :list = list(())
 
-scr = curses.initscr()
-curses.start_color()
-curses.noecho()
-curses.cbreak()
-scr.keypad(True)
-curses.curs_set(False)
-
-# Numbers 1-9 as normal, visited and on route
-for i in range(1,10):
-    curses.init_pair(i,    i%6+1, 0)
-#    curses.init_pair(i+10, i%6+1, curses.COLOR_BLUE)
-#    curses.init_pair(i+20, i%6+1, curses.COLOR_GREEN)
-# Color of the start and finish
-curses.init_pair(10, curses.COLOR_WHITE, curses.COLOR_RED)
-# Color of the player
-curses.init_pair(20, curses.COLOR_WHITE, curses.COLOR_BLACK)
-curses.init_pair(30, curses.COLOR_WHITE, curses.COLOR_WHITE)
 
 #################################################
 
@@ -40,10 +24,10 @@ class Game:
         global TABLE
         self.SizeX :int = SizeX
         self.SizeY :int = SizeY
-        self.StrX  :int = SizeX // 6
-        self.StrY  :int = SizeY // 6
-        self.EndX  :int = SizeX * 5 // 6
-        self.EndY  :int = SizeY * 5 // 6
+        self.StrX  :int = SizeX // 10
+        self.StrY  :int = SizeY // 10
+        self.EndX  :int = SizeX * 9 // 10
+        self.EndY  :int = SizeY * 9 // 10
 
         for j in range(0,self.SizeY):
             for i in range(0,self.SizeX):
@@ -131,12 +115,12 @@ class Cell:
 
 
     def draw(self) -> None:
-        """Draw the character to the current cursor position"""
+        """Draw the character to the correct position"""
         col :int = curses.color_pair(self.Val)
         if self.Route:   col = curses.color_pair(30) | curses.A_BOLD
         if self.Visited: col = col | curses.A_REVERSE
         if self.Special:
-            scr.addstr(self.Y, self.X, str(self.Val), curses.color_pair(10) | curses.A_BOLD)
+            scr.addstr(self.Y, self.X, str(self.Val), curses.color_pair(10) | curses.A_BOLD | curses.A_BLINK)
         else:
             scr.addstr(self.Y, self.X, str(self.Val), col)
 
@@ -166,6 +150,7 @@ class Cell:
     def makeSolution(self) -> None:
         """Make myself part of the solution"""
         self.IamSolution = True
+
 
 
 class Player:
@@ -262,35 +247,84 @@ def recurGenWalls(L: int, T: int, R: int, B: int) -> None:
         recurGenWalls(L, splitY+1, R, B)
 
 
-
 #################################################
 
 
+# Initial stuff
+WID :int =40
+HEI :int =20
+w1 :str = ""
+h1 :str = ""
+if len(sys.argv) == 2 or len(sys.argv) > 3 :
+    print("Usage: numlaby.py <width> <height>   -- integer numbers, not less than 5")
+    exit(0)
+if len(sys.argv) == 3 :
+    w1, h1 = sys.argv[1:3]
+    if w1.isdecimal() and h1.isdecimal() :
+        if int(w1) > 4 and int(h1) > 4 :
+            WID, HEI = int(w1), int(h1)
+
+print("\x1b[2J\x1b[H"+"#"*60+"\n#\n#\n#       THE NUMBER LABYRINTH\n#      ======================\n#\n#")
+print("# Your goal is to roam from the starting cell to the exit cell.")
+print("# You can only move in the 4 basic directions using the cursor keys.")
+print("# You can only step on such adjacent cells, for which the number\n#   differs from Your current cell by exactly 1 (either up or down).")
+print("#   (so from a cell with [4] You can only step on a cell with [3] or [5])")
+print("# To quit the game at any time just hit 'q'.\n#")
+print("# You are displayed as a white `\x1b[1;37;40m@\x1b[0m` symbol, covering the current cell,\n#   so the number of the current cell is echoed below the labyrinth.")
+print("# Start and Exit cells are blinking \x1b[1;37;41mwhite on red\x1b[0m, showing their own number.")
+print("# Your last known correct path from the start is highlighted with a \x1b[1;30;47mwhite trail\x1b[0m to lead You back if needed.")
+print("# Any already visited cells not being part of the last correct path are displayed \x1b[7mreversed\x1b[0m.")
+print("# Yet unvisited cells are colorful numbers on default dark background.\n#\n\n\n")
+
+input(" >>> Hit [ENTER] if You are ready to go! <<<")
+
+
+scr = curses.initscr()
+curses.start_color()
+curses.noecho()
+curses.cbreak()
+scr.keypad(True)
+curses.curs_set(False)
+
+# Numbers 1-9 as normal, visited and on route
+for x in range(1,10):
+    curses.init_pair(x,    x%6+1, 0)
+#    curses.init_pair(x+10, x%6+1, curses.COLOR_BLUE)
+#    curses.init_pair(x+20, x%6+1, curses.COLOR_GREEN)
+# Color of the start and finish
+curses.init_pair(10, curses.COLOR_WHITE, curses.COLOR_RED)
+# Color of the player
+curses.init_pair(20, curses.COLOR_WHITE, curses.COLOR_BLACK)
+curses.init_pair(30, curses.COLOR_WHITE, curses.COLOR_WHITE)
+
 # Generate map, initialize start and end, place player to the start
-g = Game(60,30)
-recurGenWalls(0,0,59,29)
+g = Game(WID,HEI)
+recurGenWalls(0,0,WID-1,HEI-1)
 
 TABLE[str(g.StrX)+","+str(g.StrY)].MyRoute.append(TABLE[str(g.StrX)+","+str(g.StrY)])
 
 # Scan through all cells and update personal route
+# Initially there was a nice and short recursive algorhythm here,
+# but somehow it got "stack overflow" (too many recursions) at larger labyrinth sizes,
+# so it had to be changed to this "repeat until there is any change"
 WasChange :bool =True
 while WasChange:
     WasChange =False
-    for j in range(0,g.SizeY):
-        for i in range(0,g.SizeX):
-            o1 = TABLE[str(i)+","+str(j)]
+    for y in range(0,g.SizeY):
+        for x in range(0,g.SizeX):
+            o1 = TABLE[str(x)+","+str(y)]
             if len(o1.MyRoute):
-                if o1.allow["L"] and not len(TABLE[str(i-1)+","+str(j)].MyRoute):
-                    TABLE[str(i-1)+","+str(j)].tailYourself(o1.MyRoute)
+                if o1.allow["L"] and not len(TABLE[str(x-1)+","+str(y)].MyRoute):
+                    TABLE[str(x-1)+","+str(y)].tailYourself(o1.MyRoute)
                     WasChange = True
-                if o1.allow["R"] and not len(TABLE[str(i+1)+","+str(j)].MyRoute):
-                    TABLE[str(i+1)+","+str(j)].tailYourself(o1.MyRoute)
+                if o1.allow["R"] and not len(TABLE[str(x+1)+","+str(y)].MyRoute):
+                    TABLE[str(x+1)+","+str(y)].tailYourself(o1.MyRoute)
                     WasChange = True
-                if o1.allow["U"] and not len(TABLE[str(i)+","+str(j-1)].MyRoute):
-                    TABLE[str(i)+","+str(j-1)].tailYourself(o1.MyRoute)
+                if o1.allow["U"] and not len(TABLE[str(x)+","+str(y-1)].MyRoute):
+                    TABLE[str(x)+","+str(y-1)].tailYourself(o1.MyRoute)
                     WasChange = True
-                if o1.allow["D"] and not len(TABLE[str(i)+","+str(j+1)].MyRoute):
-                    TABLE[str(i)+","+str(j+1)].tailYourself(o1.MyRoute)
+                if o1.allow["D"] and not len(TABLE[str(x)+","+str(y+1)].MyRoute):
+                    TABLE[str(x)+","+str(y+1)].tailYourself(o1.MyRoute)
                     WasChange = True
     #--- For debug purposes only
     #g.prettyPrint()
@@ -308,7 +342,7 @@ while len(ValList) < len(SOLUTION):
         CurValue+=1
     else:
         CurValue-=1
-for i in range(0, len(SOLUTION)) : SOLUTION[i].Val = ValList[i]
+for x in range(0, len(SOLUTION)) : SOLUTION[x].Val = ValList[x]
 
 #--- For debug purposes only
 #fdbg = open("debug.txt","w")
@@ -328,7 +362,7 @@ scr.clear()
 while not p.Won:
     g.redrawScreen()
     p.draw()
-    scr.addstr(g.SizeY+1, 0,"["+str(TABLE[str(p.X)+","+str(p.Y)].Val)+"] >", curses.color_pair(20))
+    scr.addstr(g.SizeY+1, 0,"You are standing on : ["+str(TABLE[str(p.X)+","+str(p.Y)].Val)+"]", curses.color_pair(20))
     scr.refresh()
     cmd = scr.getch()
 
