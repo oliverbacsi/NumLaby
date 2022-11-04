@@ -3,7 +3,7 @@
 
 Find Your way from the Start to the Exit, stepping only on adjacent numbers from geometrical and from mathematical perspectives.
 
-![Screenshot](https://github.com/oliverbacsi/NumLaby/blob/master/Screenshot.png)
+![Screenshot](https://github.com/oliverbacsi/NumLaby/blob/main/Screenshot.png)
 
 **Usage**:
 ```
